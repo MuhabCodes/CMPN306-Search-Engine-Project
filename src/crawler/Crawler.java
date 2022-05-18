@@ -92,6 +92,7 @@ public class Crawler implements Runnable {
     }
 
     public static boolean is_url_allowed(String url) {
+        parse_robot(url);
         String extension = FilenameUtils.getExtension(url);
         for (String blocked_extension : BLOCKED_EXTENSIONS)
             if (extension.equals(blocked_extension))

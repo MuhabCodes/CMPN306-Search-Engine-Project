@@ -83,6 +83,9 @@ public class Crawler implements Runnable {
                 }
                 parsedRobots.put(robots_txt_url, true);
             }
+            catch (ArrayIndexOutOfBoundsException e) {
+                System.out.println("Couldn't parse url for: " + robots_txt_url.replace("/robots.txt", ""));
+            }
             catch (IOException e) {
                 System.out.println("robots.txt does not exist for url: " + robots_txt_url.replace("/robots.txt", ""));
             }
@@ -119,10 +122,8 @@ public class Crawler implements Runnable {
                 String absolute_link = loc.attr("abs:href");
                 absolute_link.replace("/sitemap.xml", "");
                 absolute_link.replace("/sitemaps.xml", "");
-                if (is_url_allowed(absolute_link)) {
-                    if (!linksQueue.contains(absolute_link) && is_url_allowed(absolute_link)) {
-                        linksQueue.add(absolute_link);
-                    }
+                if (is_url_allowed(absolute_link) && !linksQueue.contains(absolute_link)) {
+                    linksQueue.add(absolute_link);
                 }
             }
             return true;

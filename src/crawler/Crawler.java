@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.*;
 import java.util.*;
+import javax.xml.parsers.*;
 import java.net.*;
 
 public class Crawler implements Runnable {
@@ -28,6 +29,7 @@ public class Crawler implements Runnable {
             ));
 
     public static Queue<String> linksQueue = new LinkedList<>();
+    public static Queue<String> blockedUrls = new LinkedList<>();
 
     public Crawler() {
     }
@@ -43,10 +45,42 @@ public class Crawler implements Runnable {
     public static @Nullable String normalize_url(String url) throws MalformedURLException {
         try {
             URL url_object = new URL(url.trim().toLowerCase());
-            return "http://" + url_object.getHost() + url_object.getPath();
+            return url_object.getProtocol() + "://" + url_object.getHost() + url_object.getPath() + "/";
         }
         catch (MalformedURLException e) {
             return null;
+        }
+    }
+
+    public static void robot_parser(String url) {
+        try {
+            URL link = new URL(url);
+            String robots_txt_url = link.getProtocol() + "://" + link.getHost() + "/robots.txt";
+            boolean start_processing_flag = false;
+            try {
+                BufferedReader read = new BufferedReader(new InputStreamReader(new URL(robots_txt_url).openStream()));
+                String line = "";
+                while ((line = read.readLine()) != null) {
+                    if (line.startsWith("User-Agent")) {
+                        if (line.contains("*")) {
+                            while ((line = read.readLine()) != null) {
+                                if (line.startsWith("Disallow")) {
+                                    String disallow_url = line.split(":")[1].trim();
+                                    blockedUrls.add(link.getProtocol().replace("s", "")+ "://" + disallow_url);
+                                }
+                                else if (line.startsWith("user-agent")) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (IOException e) {
+                System.out.println("robots.txt does not exist for url: " + robots_txt_url.replace("/robots.txt", ""));
+            }
+        } catch (MalformedURLException e) {
+            System.out.println("Wrong URL:" + url);
         }
     }
 
@@ -67,5 +101,7 @@ public class Crawler implements Runnable {
         // TODO Auto-generated method stub
         Crawler crawler = new Crawler();
         crawler.SeedCrawler();
+        robot_parser("https://www.reddit.com/post/");
+        int x = 5;
     }
 }

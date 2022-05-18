@@ -19,7 +19,7 @@ import org.jetbrains.annotations.Nullable;
 
 
 public class Crawler implements Runnable {
-    private static final int MIN_PAGES_TO_CRAWL = 10;
+    private static final int MIN_PAGES_TO_CRAWL = 5000;
     private static final int MAX_LINK_DEPTH = 10;
     // These 2 path strings need to be updated to relative pathing
     private static final String SEED_FILE = "./seedURLs.txt";
@@ -37,6 +37,7 @@ public class Crawler implements Runnable {
     public static Queue<String> linksQueue = new LinkedList<>();
     public static Queue<String> blockedUrls = new LinkedList<>();
     public static HashMap<String, Boolean> parsedRobots = new HashMap<>();
+    public static Hashtable<String, String> urlToHtml = new Hashtable<>();
 
     public Crawler() {
     }
@@ -44,7 +45,8 @@ public class Crawler implements Runnable {
     public static @Nullable String normalize_url(String url) throws MalformedURLException {
         try {
             URL url_object = new URL(url.trim());
-            return url_object.getProtocol() + "://" + url_object.getHost() + url_object.getPath();
+            String query = (url_object.getQuery()) == null ? "" : "?" + url_object.getQuery();
+            return url_object.getProtocol() + "://" + url_object.getHost() + url_object.getPath() + query;
         }
         catch (MalformedURLException e) {
             return null;
@@ -57,40 +59,32 @@ public class Crawler implements Runnable {
             String robots_txt_url =  link.getProtocol() + "://" + link.getHost() + "/robots.txt";
             if (parsedRobots.containsKey(robots_txt_url))
                 return;
-            try {
-                BufferedReader read = new BufferedReader(new InputStreamReader(new URL(robots_txt_url).openStream()));
-                String line = "";
-                while ((line = read.readLine()) != null) {
-                    if (line.toLowerCase().startsWith("user-agent")) {
-                        if (line.contains("*")) {
-                            while ((line = read.readLine()) != null) {
-                                if (line.toLowerCase().startsWith("disallow")) {
-                                    String disallow_url = line.split(":")[1].trim();
-                                    blockedUrls.add(link.getProtocol() + "://" + link.getHost() + disallow_url);
-                                }
-                                else if (line.toLowerCase().startsWith("user-agent")) {
-                                    break;
-                                }
-                                else if (line.toLowerCase().startsWith("sitemap")) {
-                                    parse_sitemap_xml(line.split(":")[1].trim());
-                                }
+            BufferedReader read = new BufferedReader(new InputStreamReader(new URL(robots_txt_url).openStream()));
+            String line = "";
+            while ((line = read.readLine()) != null) {
+                if (line.toLowerCase().startsWith("user-agent")) {
+                    if (line.contains("*")) {
+                        while ((line = read.readLine()) != null) {
+                            if (line.toLowerCase().startsWith("disallow")) {
+                                String disallow_url = line.split(":")[1].trim();
+                                blockedUrls.add(link.getProtocol() + "://" + link.getHost() + disallow_url);
+                            }
+                            else if (line.toLowerCase().startsWith("user-agent")) {
+                                break;
+                            }
+                            else if (line.toLowerCase().startsWith("sitemap")) {
+                                parse_sitemap_xml(line.split(":")[1].trim());
                             }
                         }
                     }
-                    else if (line.toLowerCase().startsWith("sitemap")) {
-                        parse_sitemap_xml(line.split(":")[1].trim());
-                    }
+                }
+                else if (line.toLowerCase().startsWith("sitemap")) {
+                    parse_sitemap_xml(line.split(":")[1].trim());
                 }
                 parsedRobots.put(robots_txt_url, true);
             }
-            catch (ArrayIndexOutOfBoundsException e) {
-                System.out.println("Couldn't parse url for: " + robots_txt_url.replace("/robots.txt", ""));
-            }
-            catch (IOException e) {
-                System.out.println("robots.txt does not exist for url: " + robots_txt_url.replace("/robots.txt", ""));
-            }
-        } catch (MalformedURLException e) {
-            System.out.println("Wrong URL:" + url);
+        } catch (IOException | ArrayIndexOutOfBoundsException e) {
+            // System.out.println("Couldn't parse robot.txt for: " + robots_txt_url.replace("/robots.txt", ""));
         }
     }
 
@@ -123,14 +117,12 @@ public class Crawler implements Runnable {
                 absolute_link.replace("/sitemap.xml", "");
                 absolute_link.replace("/sitemaps.xml", "");
                 if (is_url_allowed(absolute_link) && !linksQueue.contains(absolute_link)) {
-                    linksQueue.add(absolute_link);
+                    linksQueue.add(normalize_url(absolute_link));
+                    System.out.println("Crawl Added: " + absolute_link);
+                    System.out.println("Current Size: " + linksQueue.size());
                 }
             }
             return true;
-        }
-        catch (MalformedURLException e) {
-            System.out.println("Couldn't parse sitemap.xml for url:" + url);
-            System.out.println(e.getMessage());
         }
         catch (IOException e) {
             System.out.println("Couldn't parse sitemap.xml for url:" + url);
@@ -150,19 +142,17 @@ public class Crawler implements Runnable {
                 String absolute_link = link.attr("abs:href");
                 if (is_url_allowed(absolute_link)) {
                     if (!linksQueue.contains(absolute_link) && is_url_allowed(absolute_link)) {
-                        linksQueue.add(absolute_link);
+                        linksQueue.add(normalize_url(absolute_link));
+                        System.out.println("Crawl Added: " + absolute_link);
+                        System.out.println("Current Size: " + linksQueue.size());
                     }
                 }
             }
 
             return true;
         }
-        catch (MalformedURLException e) {
-            System.out.println("couldn't parse url:" + url);
-            System.out.println(e.getMessage());
-        }
         catch (IOException e) {
-            System.out.println("Couldn't parse url:" + url);
+            System.out.println("couldn't parse url:" + url);
             System.out.println(e.getMessage());
         }
         return false;
@@ -172,11 +162,12 @@ public class Crawler implements Runnable {
         try {
             Document doc = Jsoup.connect(url).get();
             String html = doc.html();
-            String file_name = url + ".html";
+            String file_name = doc.title() + ".html";
             File file = new File(OUTPUT_DIRECTORY + file_name);
             file.createNewFile();
             FileWriter writer = new FileWriter(file);
             writer.write(html);
+            urlToHtml.put(url, file_name);
             writer.close();
         }
         catch (IOException e) {
@@ -187,12 +178,14 @@ public class Crawler implements Runnable {
 
     public static void SeedCrawler() throws java.io.IOException {
         File directory = new File(OUTPUT_DIRECTORY);
-        if (directory.exists())
+        if (!directory.exists())
             directory.mkdirs();
         File seed = new File(SEED_FILE);
         Scanner scanner = new Scanner(seed);
         while (scanner.hasNextLine()) {
             Crawler.linksQueue.add(normalize_url(scanner.nextLine()));
+            System.out.println("Crawl Added: " + normalize_url(scanner.nextLine()));
+            System.out.println("Current Size: " + linksQueue.size());
         }
     }
 

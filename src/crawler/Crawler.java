@@ -83,6 +83,9 @@ public class Crawler implements Runnable {
                 }
                 parsedRobots.put(robots_txt_url, true);
             }
+            catch (ArrayIndexOutOfBoundsException e) {
+                System.out.println("Couldn't parse url for: " + robots_txt_url.replace("/robots.txt", ""));
+            }
             catch (IOException e) {
                 System.out.println("robots.txt does not exist for url: " + robots_txt_url.replace("/robots.txt", ""));
             }

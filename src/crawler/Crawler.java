@@ -167,6 +167,23 @@ public class Crawler implements Runnable {
         return false;
     }
 
+    public static void download_html(String url) {
+        try {
+            Document doc = Jsoup.connect(url).get();
+            String html = doc.html();
+            String file_name = url + ".html";
+            File file = new File(OUTPUT_DIRECTORY + file_name);
+            file.createNewFile();
+            FileWriter writer = new FileWriter(file);
+            writer.write(html);
+            writer.close();
+        }
+        catch (IOException e) {
+            System.out.println("Couldn't download html for url:" + url);
+            System.out.println(e.getMessage());
+        }
+    }
+
     public void SeedCrawler() throws java.io.IOException {
         File seed = new File(SEED_FILE);
         Scanner scanner = new Scanner(seed);
@@ -177,12 +194,23 @@ public class Crawler implements Runnable {
 
     @Override
     public void run() {
-        // TODO Auto-generated method stub
+        while (!linksQueue.isEmpty()) {
+            String url = linksQueue.remove();
+            if (url.contains("sitemap.xml") || url.contains("sitemaps.xml")) {
+                parse_sitemap_xml(url);
+                continue;
+            }
+            parse_url_html(url);
+            download_html(url);
+        }
     }
 
     public static void main(String[] args) throws IOException {
         // TODO Auto-generated method stub
         Crawler crawler = new Crawler();
         crawler.SeedCrawler();
+        File directory = new File(OUTPUT_DIRECTORY);
+        if (directory.exists())
+            directory.mkdirs();
     }
 }

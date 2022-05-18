@@ -57,7 +57,7 @@ public class Crawler implements Runnable {
     public static void parse_robot(String url) {
         try {
             URL link = new URL(url);
-            String robots_txt_url =  normalize_url(url) + "robots.txt";
+            String robots_txt_url =  link.getProtocol() + "://" + link.getHost() + "/robots.txt";
             boolean start_processing_flag = false;
             try {
                 BufferedReader read = new BufferedReader(new InputStreamReader(new URL(robots_txt_url).openStream()));

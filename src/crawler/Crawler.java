@@ -153,6 +153,8 @@ public class Crawler implements Runnable {
                     }
                 }
             }
+
+            return true;
         }
         catch (MalformedURLException e) {
             System.out.println("couldn't parse url:" + url);

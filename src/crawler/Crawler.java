@@ -184,7 +184,7 @@ public class Crawler implements Runnable {
         }
     }
 
-    public void SeedCrawler() throws java.io.IOException {
+    public static void SeedCrawler() throws java.io.IOException {
         File seed = new File(SEED_FILE);
         Scanner scanner = new Scanner(seed);
         while (scanner.hasNextLine()) {
@@ -207,8 +207,7 @@ public class Crawler implements Runnable {
 
     public static void main(String[] args) throws IOException {
         // TODO Auto-generated method stub
-        Crawler crawler = new Crawler();
-        crawler.SeedCrawler();
+        SeedCrawler();
         File directory = new File(OUTPUT_DIRECTORY);
         if (directory.exists())
             directory.mkdirs();

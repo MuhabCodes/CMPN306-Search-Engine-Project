@@ -19,7 +19,7 @@ import org.jetbrains.annotations.Nullable;
 
 
 public class Crawler implements Runnable {
-    private static final int MIN_PAGES_TO_CRAWL = 5000;
+    private static final int MIN_PAGES_TO_CRAWL = 10;
     private static final int MAX_LINK_DEPTH = 10;
     // These 2 path strings need to be updated to relative pathing
     private static final String SEED_FILE = "./seedURLs.txt";
@@ -119,10 +119,8 @@ public class Crawler implements Runnable {
                 String absolute_link = loc.attr("abs:href");
                 absolute_link.replace("/sitemap.xml", "");
                 absolute_link.replace("/sitemaps.xml", "");
-                if (is_url_allowed(absolute_link)) {
-                    if (!linksQueue.contains(absolute_link) && is_url_allowed(absolute_link)) {
-                        linksQueue.add(absolute_link);
-                    }
+                if (is_url_allowed(absolute_link) && !linksQueue.contains(absolute_link)) {
+                    linksQueue.add(absolute_link);
                 }
             }
             return true;
@@ -185,6 +183,9 @@ public class Crawler implements Runnable {
     }
 
     public static void SeedCrawler() throws java.io.IOException {
+        File directory = new File(OUTPUT_DIRECTORY);
+        if (directory.exists())
+            directory.mkdirs();
         File seed = new File(SEED_FILE);
         Scanner scanner = new Scanner(seed);
         while (scanner.hasNextLine()) {
@@ -208,8 +209,18 @@ public class Crawler implements Runnable {
     public static void main(String[] args) throws IOException {
         // TODO Auto-generated method stub
         SeedCrawler();
-        File directory = new File(OUTPUT_DIRECTORY);
-        if (directory.exists())
-            directory.mkdirs();
+        Thread [] threads = new Thread[NUM_THREADS];
+        for (int i = 0; i < NUM_THREADS; i++) {
+            threads[i] = new Thread(new Crawler());
+            threads[i].start();
+        }
+        try{
+            for (int i = 0; i < NUM_THREADS; i++) {
+                threads[i].join();
+            }
+        }
+        catch (InterruptedException e) {
+            System.out.println("Thread interrupted");
+        }
     }
 }

@@ -6,14 +6,18 @@
 // the seed is found in text file called seedURLs.txt
 
 import java.io.*;
-import javax.xml.parsers.*;
 import java.net.*;
-import org.jetbrains.annotations.Nullable;
-import org.w3c.dom.Document;
 import java.util.*;
 
-import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
+import org.apache.commons.io.FilenameUtils;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.jetbrains.annotations.Nullable;
+
+
+
 public class Crawler implements Runnable {
     private static final int MIN_PAGES_TO_CRAWL = 5000;
     private static final int MAX_LINK_DEPTH = 10;
@@ -32,21 +36,14 @@ public class Crawler implements Runnable {
 
     public static Queue<String> linksQueue = new LinkedList<>();
     public static Queue<String> blockedUrls = new LinkedList<>();
+    public static HashMap<String, Boolean> parsedRobots = new HashMap<>();
 
     public Crawler() {
     }
 
-    private static boolean is_url_blocked(String url) {
-        for (String extension : BLOCKED_EXTENSIONS)
-            if (url.endsWith(extension))
-                return true;
-
-        return false;
-    }
-
     public static @Nullable String normalize_url(String url) throws MalformedURLException {
         try {
-            URL url_object = new URL(url.trim().toLowerCase());
+            URL url_object = new URL(url.trim());
             return url_object.getProtocol() + "://" + url_object.getHost() + url_object.getPath();
         }
         catch (MalformedURLException e) {
@@ -58,25 +55,33 @@ public class Crawler implements Runnable {
         try {
             URL link = new URL(url);
             String robots_txt_url =  link.getProtocol() + "://" + link.getHost() + "/robots.txt";
-            boolean start_processing_flag = false;
+            if (parsedRobots.containsKey(robots_txt_url))
+                return;
             try {
                 BufferedReader read = new BufferedReader(new InputStreamReader(new URL(robots_txt_url).openStream()));
                 String line = "";
                 while ((line = read.readLine()) != null) {
-                    if (line.startsWith("User-Agent")) {
+                    if (line.toLowerCase().startsWith("user-agent")) {
                         if (line.contains("*")) {
                             while ((line = read.readLine()) != null) {
-                                if (line.startsWith("Disallow")) {
+                                if (line.toLowerCase().startsWith("disallow")) {
                                     String disallow_url = line.split(":")[1].trim();
-                                    blockedUrls.add(link.getProtocol().replace("s", "")+ "://" + disallow_url);
+                                    blockedUrls.add(link.getProtocol() + "://" + link.getHost() + disallow_url);
                                 }
-                                else if (line.startsWith("user-agent")) {
+                                else if (line.toLowerCase().startsWith("user-agent")) {
                                     break;
+                                }
+                                else if (line.toLowerCase().startsWith("sitemap")) {
+                                    parse_sitemap_xml(line.split(":")[1].trim());
                                 }
                             }
                         }
                     }
+                    else if (line.toLowerCase().startsWith("sitemap")) {
+                        parse_sitemap_xml(line.split(":")[1].trim());
+                    }
                 }
+                parsedRobots.put(robots_txt_url, true);
             }
             catch (IOException e) {
                 System.out.println("robots.txt does not exist for url: " + robots_txt_url.replace("/robots.txt", ""));
@@ -86,27 +91,75 @@ public class Crawler implements Runnable {
         }
     }
 
-    public static boolean parse_xml(String url) {
+    public static boolean is_url_allowed(String url) {
+        String extension = FilenameUtils.getExtension(url);
+        for (String blocked_extension : BLOCKED_EXTENSIONS)
+            if (extension.equals(blocked_extension))
+                return false;
+        for (String blocked_url : blockedUrls)
+        {
+            try {
+                if ((new URL(url).getHost().equals(new URL(blocked_url).getHost()) && url.endsWith(extension)) || url.equals(blocked_url))
+                    return false;
+            }
+            catch (MalformedURLException e) {
+                System.out.println("Wrong URL:" + url);
+            }
+        }
+        return true;
+    }
+
+    public static boolean parse_sitemap_xml(String url) {
         try {
-            String sitemap = normalize_url(url) + "sitemap.xml";
-            DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-            Document doc = builder.parse(new URL(sitemap).openStream());
-            doc.getDocumentElement().normalize();
-            NodeList nodeList = doc.getElementsByTagName("loc");
-            for (int i = 0; i < nodeList.getLength(); i++) {
-                String link = nodeList.item(i).getTextContent();
-                if (!linksQueue.contains(link) && !is_url_blocked(link)) {
-                    linksQueue.add(link.replace("/sitemap.xml", ""));
+            URL temp = new URL(url);
+            String sitemap = url + "sitemap.xml";
+            Document doc = Jsoup.connect(sitemap).get();
+            for (Element loc : doc.select("loc")) {
+                String absolute_link = loc.attr("abs:href");
+                absolute_link.replace("/sitemap.xml", "");
+                absolute_link.replace("/sitemaps.xml", "");
+                if (is_url_allowed(absolute_link)) {
+                    if (!linksQueue.contains(absolute_link) && is_url_allowed(absolute_link)) {
+                        linksQueue.add(absolute_link);
+                    }
+                }
+            }
+            return true;
+        }
+        catch (MalformedURLException e) {
+            System.out.println("Couldn't parse sitemap.xml for url:" + url);
+            System.out.println(e.getMessage());
+        }
+        catch (IOException e) {
+            System.out.println("Couldn't parse sitemap.xml for url:" + url);
+            System.out.println(e.getMessage());
+        }
+        return false;
+    }
+
+    public static boolean parse_url_html(String url) {
+        try {
+            URL temp = new URL(url);
+            String html = url + "/";
+
+            Document document = Jsoup.connect(html).get();
+            Elements links = document.select("a[href]");
+            for (Element link : links) {
+                String absolute_link = link.attr("abs:href");
+                if (is_url_allowed(absolute_link)) {
+                    if (!linksQueue.contains(absolute_link) && is_url_allowed(absolute_link)) {
+                        linksQueue.add(absolute_link);
+                    }
                 }
             }
         }
-        catch (ParserConfigurationException e) {
-        }
         catch (MalformedURLException e) {
+            System.out.println("couldn't parse url:" + url);
+            System.out.println(e.getMessage());
         }
         catch (IOException e) {
-        }
-        catch (SAXException e) {
+            System.out.println("Couldn't parse url:" + url);
+            System.out.println(e.getMessage());
         }
         return false;
     }
@@ -128,8 +181,5 @@ public class Crawler implements Runnable {
         // TODO Auto-generated method stub
         Crawler crawler = new Crawler();
         crawler.SeedCrawler();
-        parse_robot("https://www.reddit.com/post/");
-        parse_xml("https://www.google.com/");
-        int x = 5;
     }
 }

@@ -195,6 +195,13 @@ public class Crawler implements Runnable {
             append_to_file(file_name + "\n", SEED_NAME);
             append_to_file(url + "\n", SEED_HTML_LINKS);
             writer.close();
+
+            Hashtable<String, String> data = new Hashtable<String, String>();
+            data.put(url, html_file);
+            Socket socket = new Socket("localhost", 4722);
+            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+            out.writeObject(data);
+
         }
         catch (IOException e) {
             System.out.println("couldn't parse url:" + url);
@@ -246,9 +253,9 @@ public class Crawler implements Runnable {
 
     public static void rewrite_state_file() {
         try {
-            File file = new File("./state.txt");
+            File file = new File(STATE_FILE);
             file.createNewFile();
-            int stop_counter = new Scanner(new File("./state.txt")).nextInt();
+            int stop_counter = new Scanner(new File(STATE_FILE)).nextInt();
             FileWriter writer = new FileWriter(file);
             writer.write(Integer.toString(stop_counter + 1));
             writer.close();

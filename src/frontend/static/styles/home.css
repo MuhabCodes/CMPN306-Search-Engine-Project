@@ -1,0 +1,42 @@
+body {
+    background-color: white;
+}
+
+#blue { color: #4285f4; }
+#green { color: #34a853; }
+#yellow { color: #fbbc05; }
+#red { color: #ea4335; }
+
+#logo {
+  font-family: 'Product Sans', Arial, sans-serif;
+  font-size: 88px;
+  text-align: center;
+  margin-top: 200px;
+  margin-bottom: 34px;
+}
+
+#input-field {
+  text-align: center;
+  margin-bottom: 34px;
+}
+
+input {
+  font-size: 16px;
+  padding: 9px;
+  border: 1px solid gainsboro;
+}
+
+#button-group {
+  text-align: center;
+}
+
+.btn {
+  padding: 10px 18px;
+  background: whitesmoke;
+  color: gray;
+  border: 0;
+}
+
+#search {
+  margin-right: 3px;
+}

@@ -279,9 +279,13 @@ public class Crawler implements Runnable {
             writer.write("0");
             writer.close();
         }
+        File names = new File(SEED_NAME);
+        File links = new File(SEED_HTML_LINKS);
+        names.createNewFile();
+        links.createNewFile();
         int stop_counter = new Scanner(state).nextInt();
-        Scanner scanner_doc_names = new Scanner(new File(SEED_NAME));
-        Scanner scanner_links_names = new Scanner(new File(SEED_HTML_LINKS));
+        Scanner scanner_doc_names = new Scanner(names);
+        Scanner scanner_links_names = new Scanner(links);
         while (scanner_doc_names.hasNextLine() && scanner_links_names.hasNextLine()) {
             String doc_name = scanner_doc_names.nextLine();
             String links_name = scanner_links_names.nextLine();

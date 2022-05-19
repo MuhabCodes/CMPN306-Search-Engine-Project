@@ -22,6 +22,9 @@ public class Crawler implements Runnable {
     private static final int MIN_PAGES_TO_CRAWL = 5000;
     // These 2 path strings need to be updated to relative pathing
     private static final String SEED_FILE = "./seedURLs.txt";
+    private static final String SEED_NAME = "./htmlNames.txt";
+    private static final String SEED_HTML_LINKS = "./htmlLinks.txt";
+    private static final String STATE_FILE = "./state.txt";
     private static final String OUTPUT_DIRECTORY = "./html_docs/";
     private static final int NUM_THREADS = 10;
     // list of blocked extensions
@@ -162,16 +165,36 @@ public class Crawler implements Runnable {
 
     public static void parse_url_html(String url) {
         try {
+            if (url == null || url.isEmpty())
+                return;
+
             URL temp = new URL(url);
             String html = url + "/";
 
             Document document = Jsoup.connect(html).get();
+            if (document.title().isEmpty() || document.title().equals("404 Not Found"))
+                return;
             Elements links = document.select("a[href]");
             for (Element link : links) {
                 String absolute_link = link.attr("abs:href");
                 absolute_link = normalize_url(absolute_link);
                 add_to_crawled_queue(absolute_link);
             }
+
+            String html_file = document.html();
+            if (html_file.isEmpty())
+                return;
+
+            String file_name = document.title() + ".html";
+            file_name = file_name.replace(" ", "_");
+            File file = new File(OUTPUT_DIRECTORY + file_name);
+            file.createNewFile();
+            FileWriter writer = new FileWriter(file);
+            writer.write(html_file);
+            urlToHtml.put(url, file_name);
+            append_to_file(file_name + "\n", SEED_NAME);
+            append_to_file(url + "\n", SEED_HTML_LINKS);
+            writer.close();
         }
         catch (IOException e) {
             System.out.println("couldn't parse url:" + url);
@@ -179,30 +202,17 @@ public class Crawler implements Runnable {
         }
     }
 
-    public static void download_html(String url) {
-        try {
-            Document doc = Jsoup.connect(url).get();
-            String html = doc.html();
-            String file_name = doc.title() + ".html";
-            File file = new File(OUTPUT_DIRECTORY + file_name);
-            file.createNewFile();
-            FileWriter writer = new FileWriter(file);
-            writer.write(html);
-            urlToHtml.put(url, file_name);
-            writer.close();
-        }
-        catch (IOException e) {
-            System.out.println("Couldn't download html for url:" + url);
-            System.out.println(e.getMessage());
-        }
-    }
-
     public static void add_to_crawled_queue(String url) {
-        if (is_url_allowed(url) && !visitedLinks.containsKey(url) && !linksQueue.contains(url) && !crawledQueue.contains(url)) {
-            synchronized (crawledQueue) {
-                crawledQueue.add(url);
+        try {
+            url = normalize_url(url);
+            if (is_url_allowed(url) && !visitedLinks.containsKey(url) && !linksQueue.contains(url) && !crawledQueue.contains(url)) {
+                synchronized (crawledQueue) {
+                    crawledQueue.add(url);
+                }
+                System.out.println("Crawl Added: " + url);
             }
-            System.out.println("Crawl Added: " + url);
+        }
+        catch (Exception e) {
         }
     }
 
@@ -256,15 +266,24 @@ public class Crawler implements Runnable {
         File seed = new File(SEED_FILE);
         Scanner scanner = new Scanner(seed);
         int counter = 0;
-        File state = new File("./state.txt");
+        File state = new File(STATE_FILE);
         if (state.createNewFile()) {
             FileWriter writer = new FileWriter(state);
             writer.write("0");
             writer.close();
         }
         int stop_counter = new Scanner(state).nextInt();
+        Scanner scanner_doc_names = new Scanner(new File(SEED_NAME));
+        Scanner scanner_links_names = new Scanner(new File(SEED_HTML_LINKS));
+        while (scanner_doc_names.hasNextLine() && scanner_links_names.hasNextLine()) {
+            String doc_name = scanner_doc_names.nextLine();
+            String links_name = scanner_links_names.nextLine();
+            urlToHtml.put(links_name, doc_name);
+        }
+        System.out.println(urlToHtml.size());
         while (scanner.hasNextLine()) {
             if (counter < stop_counter) {
+                String url = scanner.nextLine();
                 visitedLinks.put(scanner.nextLine(), true);
                 counter += 1;
                 continue;
@@ -277,10 +296,12 @@ public class Crawler implements Runnable {
 
     @Override
     public void run() {
-        while (!linksQueue.isEmpty() && visitedLinks.size() < MIN_PAGES_TO_CRAWL) {
+        while (visitedLinks.size() < MIN_PAGES_TO_CRAWL) {
             System.out.println("The Thread name is " + Thread.currentThread().getName());
             String url = new String();
             synchronized(linksQueue) {
+                if (linksQueue.isEmpty())
+                    continue;
                 url = linksQueue.poll();
             }
             synchronized(visitedLinks) {
@@ -293,7 +314,6 @@ public class Crawler implements Runnable {
                 break;
 
             parse_url_html(url);
-            download_html(url);
             synchronized (visitedLinks) {
                 visitedLinks.replace(url, true);
                 rewrite_state_file();
